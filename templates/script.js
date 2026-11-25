@@ -12,7 +12,7 @@ const riskLabels = { low: 'LOW', medium: 'MEDIUM', high: 'HIGH', critical: 'CRIT
 const riskLabelsZh = { low: '低危', medium: '中等', high: '高危', critical: '严重' };
 const dimLabels = { bubble: 'Valuation Bubble', regulation: 'Regulation', safety: 'Safety Risk', industry: 'Industry Impact' };
 const dimLabelsZh = { bubble: '估值泡沫', regulation: '监管政策', safety: '安全风险', industry: '产业冲击' };
-const dimColors = { bubble: '#ff8a00', regulation: '#b06bff', safety: '#ff2e5b', industry: '#00e5ff' };
+const dimColors = { bubble: '#b0512e', regulation: '#4a6b8a', safety: '#a01919', industry: '#2e7d6b' };
 const sentiLabels = { beneficial: 'BENEFICIAL', harmful: 'HARMFUL', neutral: 'NEUTRAL' };
 const sentiLabelsZh = { beneficial: '利于 AI 发展', harmful: '风险 / 负面事件', neutral: '影响不明确' };
 
@@ -322,11 +322,11 @@ function fmtTime(iso) {
 }
 
 function scoreColor(s) {
-  if (s == null) return '#8a97ab';
-  if (s >= 6) return '#ff2e5b';
-  if (s >= 4) return '#ff8a00';
-  if (s >= 2) return '#ffd60a';
-  return '#00ffa3';
+  if (s == null) return '#999999';
+  if (s >= 6) return '#a01919';
+  if (s >= 4) return '#c7512f';
+  if (s >= 2) return '#b8860b';
+  return '#2e7d32';
 }
 
 function esc(s) {
