@@ -20,6 +20,7 @@ import time
 import threading
 import urllib.request
 import urllib.error
+import urllib.parse
 import xml.etree.ElementTree as ET
 from datetime import datetime, timezone, timedelta
 from http.server import ThreadingHTTPServer, BaseHTTPRequestHandler
@@ -361,6 +362,27 @@ class Handler(BaseHTTPRequestHandler):
         elif path in ("/api/refresh", "/api/events/refresh"):
             refresh_news(force=True)
             self._send({"success": True, "count": len(_cache["articles"])})
+        elif path == "/api/translate":
+            # 翻译代理：前端 fetch 跨域失败时的同源兜底
+            query = self.path.split("?", 1)
+            params = urllib.parse.parse_qs(query[1] if len(query) > 1 else "")
+            text = (params.get("q") or [""])[0].strip()
+            if not text or len(text) > 500:
+                self._send({"success": False, "error": "invalid q"}, status=400)
+                return
+            url = "https://api.mymemory.translated.net/get?" + urllib.parse.urlencode(
+                {"q": text, "langpair": "en|zh-CN"})
+            try:
+                req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+                with urllib.request.urlopen(req, timeout=8) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                translated = (data.get("responseData") or {}).get("translatedText", "")
+                if not translated or translated.lower() == text.lower():
+                    matches = data.get("matches") or []
+                    translated = matches[0].get("translation", "") if matches else ""
+                self._send({"success": bool(translated), "data": translated})
+            except Exception as e:
+                self._send({"success": False, "error": str(e)[:120]})
         elif path in ("/", "/index.html"):
             self._serve_file(os.path.join(TPL_DIR, "index.html"), "text/html; charset=utf-8")
         elif path in ("/script.js", "/styles.css"):

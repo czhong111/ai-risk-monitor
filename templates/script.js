@@ -7,10 +7,14 @@ let tickerPaused = false;
 let tickerRAF = null;
 let lastTickerWidth = 0;
 
-const riskLabels = { low: '低危', medium: '中等', high: '高危', critical: '严重' };
-const dimLabels = { bubble: '估值泡沫', regulation: '监管政策', safety: '安全风险', industry: '产业冲击' };
-const dimColors = { bubble: '#f97316', regulation: '#a78bfa', safety: '#ef4444', industry: '#38bdf8' };
-const sentiLabels = { beneficial: '有利', harmful: '有害', neutral: '中性' };
+// 界面主文案为英文；title 属性提供中文悬浮提示
+const riskLabels = { low: 'LOW', medium: 'MEDIUM', high: 'HIGH', critical: 'CRITICAL' };
+const riskLabelsZh = { low: '低危', medium: '中等', high: '高危', critical: '严重' };
+const dimLabels = { bubble: 'Valuation Bubble', regulation: 'Regulation', safety: 'Safety Risk', industry: 'Industry Impact' };
+const dimLabelsZh = { bubble: '估值泡沫', regulation: '监管政策', safety: '安全风险', industry: '产业冲击' };
+const dimColors = { bubble: '#ff8a00', regulation: '#b06bff', safety: '#ff2e5b', industry: '#00e5ff' };
+const sentiLabels = { beneficial: 'BENEFICIAL', harmful: 'HARMFUL', neutral: 'NEUTRAL' };
+const sentiLabelsZh = { beneficial: '利于 AI 发展', harmful: '风险 / 负面事件', neutral: '影响不明确' };
 
 // ============ 翻译（悬浮触发，带缓存） ============
 const translateCache = new Map();   // 原文 -> 译文（含 null 表示失败，避免反复重试）
@@ -27,15 +31,25 @@ function isMostlyChinese(text) {
   return cjk / text.length > 0.25;
 }
 
+/** 清理翻译结果：反转义 HTML 实体，剔除无效/原样返回 */
+function cleanTranslation(translated, original) {
+  const cleaned = String(translated || '')
+    .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
+    .trim();
+  return cleaned && cleaned.toLowerCase() !== original.toLowerCase() ? cleaned : null;
+}
+
 /**
  * 调用 MyMemory 免费翻译 API（无需 key，支持中英互译）。
- * 国内可访问；失败返回 null。
+ * 优先浏览器直连，失败则走同源后端代理；均失败返回 null。
  */
 async function fetchTranslation(text) {
   if (translateCache.has(text)) return translateCache.get(text);
   if (translatePending.has(text)) return translatePending.get(text);
 
   const task = (async () => {
+    // 通道 1：浏览器直连 MyMemory（最快，支持 CORS）
     try {
       const url = 'https://api.mymemory.translated.net/get?q=' +
         encodeURIComponent(text) + '&langpair=en|zh-CN';
@@ -43,20 +57,24 @@ async function fetchTranslation(text) {
       if (!res.ok) throw new Error('HTTP ' + res.status);
       const data = await res.json();
       let translated = data?.responseData?.translatedText || '';
-      // MyMemory 有时返回整段大写或原样，做基础清理
       if (!translated || translated.toLowerCase() === text.toLowerCase()) {
         translated = data?.matches?.[0]?.translation || '';
       }
-      translated = translated
-        .replace(/&quot;/g, '"').replace(/&#39;/g, "'")
-        .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>')
-        .trim();
-      const result = translated && translated.toLowerCase() !== text.toLowerCase()
-        ? translated : null;
-      translateCache.set(text, result);
+      const result = cleanTranslation(translated, text);
+      if (result) { translateCache.set(text, result); return result; }
+    } catch (e) { /* 落到通道 2 */ }
+
+    // 通道 2：同源后端代理（浏览器跨域/代理受限时的兜底）
+    try {
+      const res = await fetch('/api/translate?q=' + encodeURIComponent(text),
+        { signal: AbortSignal.timeout(12000) });
+      if (!res.ok) throw new Error('HTTP ' + res.status);
+      const data = await res.json();
+      const result = cleanTranslation(data?.data || '', text);
+      translateCache.set(text, result); // 成功或失败都缓存
       return result;
     } catch (e) {
-      translateCache.set(text, null); // 失败也缓存，避免反复请求
+      translateCache.set(text, null);
       return null;
     } finally {
       translatePending.delete(text);
@@ -84,16 +102,16 @@ async function handleTitleHover(anchor) {
 
   bubble = document.createElement('span');
   bubble.className = 'zh-translation pending';
-  bubble.innerHTML = '<span class="zh-label">中文</span>翻译中…';
+  bubble.innerHTML = '<span class="zh-label">ZH</span>Translating…';
   anchor.insertAdjacentElement('afterend', bubble);
 
   const translated = await fetchTranslation(title);
   if (!bubble.isConnected) return; // 卡片已被重绘
   if (translated) {
-    bubble.innerHTML = '<span class="zh-label">中文</span>' + esc(translated);
+    bubble.innerHTML = '<span class="zh-label">ZH</span>' + esc(translated);
     bubble.classList.remove('pending');
   } else {
-    bubble.innerHTML = '<span class="zh-label">中文</span>翻译暂不可用（可点击标题查看原文）';
+    bubble.innerHTML = '<span class="zh-label">ZH</span>Translation unavailable (click headline for original)';
     bubble.classList.remove('pending');
   }
 }
@@ -121,9 +139,9 @@ function setupEventListeners() {
   });
   const refreshBtn = document.getElementById('refresh-btn');
   if (refreshBtn) refreshBtn.addEventListener('click', async () => {
-    refreshBtn.textContent = '↻ 刷新中…';
+    refreshBtn.textContent = '↻ Refreshing…';
     try { await fetch('/api/refresh', { method: 'POST' }); await loadAll(); }
-    finally { refreshBtn.textContent = '↻ 刷新'; }
+    finally { refreshBtn.textContent = '↻ Refresh'; }
   });
 
   // 悬浮翻译：事件委托，覆盖所有新闻标题（含筛选后重绘的卡片）
@@ -163,7 +181,7 @@ async function loadAll() {
     if (idx.success) renderIndex(idx.data);
     if (src.success) renderSources(src.data);
   } catch (e) {
-    console.error('加载失败:', e);
+    console.error('Load failed:', e);
   }
 }
 
@@ -175,30 +193,30 @@ function renderNews() {
     return n.risk_level === currentFilter;
   });
   if (!list.length) {
-    container.innerHTML = '<div class="loading-card">该分类暂无新闻</div>';
+    container.innerHTML = '<div class="loading-card">No news in this category</div>';
     return;
   }
   container.innerHTML = list.slice(0, 80).map(n => {
     const tags = (n.tags || []).map(t => `<span class="tag dim">${esc(t)}</span>`).join('');
     const url = n.url ? `href="${escAttr(n.url)}" target="_blank" rel="noopener"` : '';
-    const score = n.score > 0 ? `<span class="tag ${n.risk_level}">风险 ${n.score}</span>` : '';
+    const score = n.score > 0 ? `<span class="tag ${n.risk_level}" title="风险评分">RISK ${n.score}</span>` : '';
     const s = n.sentiment || 'neutral';
-    const benefit = `<span class="benefit-tag ${s === 'beneficial' ? 'positive' : s === 'harmful' ? 'negative' : ''}">${s === 'beneficial' ? '▲' : s === 'harmful' ? '▼' : '—'} ${sentiLabels[s] || '中性'}</span>`;
-    const importantBadge = n.important ? '<span class="important-flag">🔥 重要</span>' : '';
+    const benefit = `<span class="benefit-tag ${s === 'beneficial' ? 'positive' : s === 'harmful' ? 'negative' : ''}" title="${sentiLabelsZh[s] || sentiLabelsZh.neutral}">${s === 'beneficial' ? '▲' : s === 'harmful' ? '▼' : '—'} ${sentiLabels[s] || sentiLabels.neutral}</span>`;
+    const importantBadge = n.important ? '<span class="important-flag" title="高危及以上，重点展示">🔥 KEY</span>' : '';
     // 卡片 class：风险等级 + 情绪方向
     const cardClass = ['event-card', n.risk_level, s === 'beneficial' ? 'good' : s === 'harmful' ? 'bad' : ''].filter(Boolean).join(' ');
-    // 滚动条友好：给标题加原生 title 属性作为翻译兜底提示
-    const titleHint = isMostlyChinese(n.title) ? '' : ` title="悬浮查看中文翻译"`;
+    // 悬浮翻译提示（原生 title 兜底 + JS 翻译气泡）
+    const titleHint = isMostlyChinese(n.title) ? '' : ` title="Hover for Chinese translation · 悬浮查看中文翻译"`;
     return `
     <div class="${cardClass}">
         <h3><a ${url}${titleHint}>${esc(n.title)}</a>${importantBadge}</h3>
         <p class="summary">${esc(n.summary)}</p>
         <div class="meta">
             ${benefit}
-            <span class="tag ${n.risk_level}">${riskLabels[n.risk_level] || n.risk_level}</span>
+            <span class="tag ${n.risk_level}" title="${riskLabelsZh[n.risk_level] || n.risk_level}">${riskLabels[n.risk_level] || n.risk_level}</span>
             ${score}
-            <span>📰 ${esc(n.source)}</span>
-            <span>🕐 ${fmtTime(n.published)}</span>
+            <span title="新闻来源">📰 ${esc(n.source)}</span>
+            <span title="发布时间">🕐 ${fmtTime(n.published)}</span>
             ${tags}
         </div>
     </div>`;
@@ -211,7 +229,7 @@ function renderIndex(idx) {
   if (!scoreEl) return;
   scoreEl.textContent = idx.global_score != null ? idx.global_score.toFixed(1) : '--';
   scoreEl.style.color = scoreColor(idx.global_score);
-  const trendMap = { increasing: '↑ 上升中', decreasing: '↓ 下降中', stable: '→ 平稳' };
+  const trendMap = { increasing: '↑ Rising', decreasing: '↓ Falling', stable: '→ Stable' };
   const trendEl = document.getElementById('trend');
   if (trendEl) trendEl.textContent = (trendMap[idx.trend] || idx.trend) +
     (idx.last_updated ? ` · ${fmtTime(idx.last_updated)}` : '');
@@ -225,12 +243,12 @@ function renderIndex(idx) {
   if (!dimEl) return;
   const dims = idx.dimensions || {};
   const keys = Object.keys(dims);
-  if (!keys.length) { dimEl.innerHTML = '<div class="dim-loading">暂无数据</div>'; return; }
+  if (!keys.length) { dimEl.innerHTML = '<div class="dim-loading">No data</div>'; return; }
   dimEl.innerHTML = keys.map(k => {
     const v = Math.min(dims[k], 10);
     return `<div class="dim-row">
-        <span class="dim-name">${dimLabels[k] || k}</span>
-        <div class="dim-bar-wrap"><div class="dim-bar" style="width:${v*10}%;background:${dimColors[k] || '#64748b'}"></div></div>
+        <span class="dim-name" title="${dimLabelsZh[k] || k}">${dimLabels[k] || k}</span>
+        <div class="dim-bar-wrap"><div class="dim-bar" style="width:${v*10}%;background:${dimColors[k] || '#64748b'};color:${dimColors[k] || '#64748b'}"></div></div>
         <span class="dim-val">${v.toFixed(1)}</span>
     </div>`;
   }).join('');
@@ -244,7 +262,7 @@ function renderSources(sources) {
         <span class="source-name">${esc(s.name)}</span>
         <span class="source-status">
             <span class="status-dot ${s.status === 'ok' ? '' : 'err'}"></span>
-            ${s.status === 'ok' ? s.count + ' 条' : '不可用'}
+            ${s.status === 'ok' ? s.count + ' articles' : 'Unavailable'}
         </span>
     </div>`).join('');
 }
@@ -263,7 +281,7 @@ function renderTicker() {
     const imp = n.important ? '<span class="t-imp">🔥</span>' : '';
     // 滚动条标题：中文为主时不加翻译提示
     const zhHint = isMostlyChinese(n.title) ? n.title :
-      n.title + ' （悬浮标题看中文翻译）';
+      n.title + ' (Hover for Chinese translation · 悬浮查看中文翻译)';
     return `<a class="ticker-item lv-${n.risk_level} s-${s}" title="${escAttr(zhHint)}" ${n.url ? `href="${escAttr(n.url)}" target="_blank" rel="noopener"` : ''}>
         <span class="flag">${esc(n.flag || 'NEWS')}</span>${mark}${imp}
         <span class="t-title">${esc(n.title)}</span>
@@ -295,20 +313,20 @@ function fmtTime(iso) {
   try {
     const d = new Date(iso);
     const diff = (Date.now() - d.getTime()) / 1000;
-    if (diff < 60) return '刚刚';
-    if (diff < 3600) return Math.floor(diff / 60) + ' 分钟前';
-    if (diff < 86400) return Math.floor(diff / 3600) + ' 小时前';
-    return d.toLocaleDateString('zh-CN', { month: '2-digit', day: '2-digit' }) + ' ' +
-           d.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' });
+    if (diff < 60) return 'just now';
+    if (diff < 3600) return Math.floor(diff / 60) + 'm ago';
+    if (diff < 86400) return Math.floor(diff / 3600) + 'h ago';
+    return d.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit' }) + ' ' +
+           d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
   } catch { return '--'; }
 }
 
 function scoreColor(s) {
   if (s == null) return '#8a97ab';
-  if (s >= 6) return '#dc2626';
-  if (s >= 4) return '#f97316';
-  if (s >= 2) return '#eab308';
-  return '#16a34a';
+  if (s >= 6) return '#ff2e5b';
+  if (s >= 4) return '#ff8a00';
+  if (s >= 2) return '#ffd60a';
+  return '#00ffa3';
 }
 
 function esc(s) {

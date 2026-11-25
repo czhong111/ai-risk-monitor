@@ -1,20 +1,20 @@
 <!DOCTYPE html>
-<html lang="zh-CN">
+<html lang="en">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>AI 泡沫风险监控 · 全球要闻仪表盘</title>
+    <title>AI Bubble Risk Monitor · Global Intelligence Dashboard</title>
     <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-    <!-- 顶部滚动新闻条 -->
+    <!-- Top news ticker -->
     <div class="ticker-bar" id="ticker-bar">
-        <div class="ticker-brand">
-            <span class="ticker-dot"></span>AI 风险 <span class="ticker-live">LIVE</span>
+        <div class="ticker-brand" title="AI 风险实时监控">
+            <span class="ticker-dot"></span>AI RISK <span class="ticker-live">LIVE</span>
         </div>
         <div class="ticker-viewport">
             <div class="ticker-track" id="ticker-track">
-                <span class="ticker-loading">正在加载国际新闻源…</span>
+                <span class="ticker-loading">Loading global news feeds…</span>
             </div>
         </div>
         <button class="ticker-pause" id="ticker-pause" title="暂停 / 继续滚动">❚❚</button>
@@ -23,11 +23,11 @@
     <div class="container">
         <header class="dashboard-header">
             <div>
-                <h1>AI 泡沫风险监控</h1>
-                <p class="subtitle">基于全球公开新闻的实时风险评估 · 涵盖估值泡沫、监管政策、安全风险与产业冲击。将鼠标移到新闻标题上可自动翻译成中文。</p>
+                <h1 title="AI 泡沫风险监控">AI BUBBLE RISK MONITOR</h1>
+                <p class="subtitle">Real-time global risk assessment from public news · Covering valuation bubbles, regulation, safety and industry disruption. Hover any headline to see its Chinese translation.</p>
             </div>
-            <div class="risk-score">
-                <div class="score-label">全球 AI 风险指数</div>
+            <div class="risk-score" title="全球 AI 风险指数">
+                <div class="score-label">GLOBAL AI RISK INDEX</div>
                 <div class="score-main">
                     <span class="score-display" id="global-score">--</span>
                     <span class="score-denom">/ 10</span>
@@ -39,56 +39,56 @@
         <main class="dashboard-content">
             <section class="events-section">
                 <div class="section-header">
-                    <h2>实时新闻流 <span class="news-count" id="news-count">0</span></h2>
+                    <h2 title="实时新闻流">LIVE NEWS FEED <span class="news-count" id="news-count">0</span></h2>
                     <div class="filters">
-                        <button class="filter-btn active" data-filter="all">全部</button>
-                        <button class="filter-btn" data-filter="important">🔥 重要</button>
-                        <button class="filter-btn" data-filter="critical">严重</button>
-                        <button class="filter-btn" data-filter="high">高危</button>
-                        <button class="filter-btn" data-filter="medium">中等</button>
-                        <button class="filter-btn" data-filter="low">低危</button>
+                        <button class="filter-btn active" data-filter="all" title="全部">All</button>
+                        <button class="filter-btn" data-filter="important" title="重要（高危及以上）">🔥 Key</button>
+                        <button class="filter-btn" data-filter="critical" title="严重">Critical</button>
+                        <button class="filter-btn" data-filter="high" title="高危">High</button>
+                        <button class="filter-btn" data-filter="medium" title="中等">Medium</button>
+                        <button class="filter-btn" data-filter="low" title="低危">Low</button>
                     </div>
                 </div>
                 <div class="legend">
-                    <span class="legend-item"><span class="benefit-tag positive" style="margin:0">▲ 有利</span> 利于 AI 发展</span>
-                    <span class="legend-item"><span class="benefit-tag negative" style="margin:0">▼ 有害</span> 风险 / 负面事件</span>
-                    <span class="legend-item"><span class="benefit-tag" style="margin:0">— 中性</span> 影响不明确</span>
-                    <span class="legend-item"><span class="important-flag" style="margin:0">🔥 重要</span> 高危及以上，重点展示</span>
+                    <span class="legend-item" title="利于 AI 发展"><span class="benefit-tag positive" style="margin:0">▲ Beneficial</span></span>
+                    <span class="legend-item" title="风险 / 负面事件"><span class="benefit-tag negative" style="margin:0">▼ Harmful</span></span>
+                    <span class="legend-item" title="影响不明确"><span class="benefit-tag" style="margin:0">— Neutral</span></span>
+                    <span class="legend-item" title="高危及以上，重点展示"><span class="important-flag" style="margin:0">🔥 Key</span></span>
                 </div>
                 <div id="events-container" class="events-list">
-                    <div class="loading-card">正在加载国际新闻…</div>
+                    <div class="loading-card">Loading global news…</div>
                 </div>
             </section>
 
             <aside class="details-section">
                 <div class="info-panel">
-                    <h2>风险维度</h2>
+                    <h2 title="风险维度">RISK DIMENSIONS</h2>
                     <div id="dimensions" class="dimensions">
-                        <div class="dim-loading">计算中…</div>
+                        <div class="dim-loading">Computing…</div>
                     </div>
                 </div>
 
                 <div class="info-panel">
-                    <h2>统计概览</h2>
+                    <h2 title="统计概览">OVERVIEW</h2>
                     <div class="stats-grid">
-                        <div class="stat-item"><div class="stat-value" id="total-events">0</div><div class="stat-label">新闻总数</div></div>
-                        <div class="stat-item"><div class="stat-value critical" id="critical-events">0</div><div class="stat-label">严重事件</div></div>
-                        <div class="stat-item"><div class="stat-value high" id="high-events">0</div><div class="stat-label">高危事件</div></div>
-                        <div class="stat-item"><div class="stat-value" id="last-update">--</div><div class="stat-label">最近更新</div></div>
+                        <div class="stat-item"><div class="stat-value" id="total-events">0</div><div class="stat-label" title="新闻总数">Total Events</div></div>
+                        <div class="stat-item"><div class="stat-value critical" id="critical-events">0</div><div class="stat-label" title="严重事件">Critical</div></div>
+                        <div class="stat-item"><div class="stat-value high" id="high-events">0</div><div class="stat-label" title="高危事件">High Risk</div></div>
+                        <div class="stat-item"><div class="stat-value" id="last-update">--</div><div class="stat-label" title="最近更新">Last Update</div></div>
                     </div>
                 </div>
 
                 <div class="info-panel">
-                    <h2>新闻源状态 <button class="refresh-btn" id="refresh-btn">↻ 刷新</button></h2>
+                    <h2 title="新闻源状态">SOURCE STATUS <button class="refresh-btn" id="refresh-btn" title="刷新">↻ Refresh</button></h2>
                     <div id="sources-container" class="sources-list">
-                        <div class="dim-loading">检查中…</div>
+                        <div class="dim-loading">Checking…</div>
                     </div>
                 </div>
             </aside>
         </main>
 
         <footer class="dashboard-footer">
-            <span>每 3 分钟自动刷新 · 风险评分基于关键词模型推演，仅供参考 · 数据来源为国际公开新闻源 · 悬浮标题可查看中文翻译</span>
+            <span>Auto-refresh every 3 min · Risk scores are keyword-model estimates, for reference only · Data from public global news sources · Hover a headline for Chinese translation</span>
         </footer>
 
     </div>

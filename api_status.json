@@ -1,8 +1,8 @@
 {
-  "checked_at": "2026-11-25T09:21:23",
+  "checked_at": "2026-11-25T09:33:17",
   "last_code": "OK",
   "last_detail": "HTTP 200",
-  "consecutive_ok": 3649,
+  "consecutive_ok": 3691,
   "available": true,
   "model": "glm-4-flash",
   "hint": "可用，可在 VS Code Claude 里重试"
