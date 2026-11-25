@@ -24,3 +24,7 @@ Thumbs.db
 
 # 运行时状态（含本机监控数据，不提交）
 status.json
+
+# 运行时状态（含本机监控数据，不提交）
+api_status.json
+__pycache__/
