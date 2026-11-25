@@ -77,6 +77,45 @@ CRITICAL_SIGNALS = [
     "existential", "shut down", "shutdown", "bankrupt", "fraud", "scandal",
 ]
 
+# ---------------------------------------------------------------------------
+# 利好 / 利空 情绪词库：判断一条新闻对 AI 行业与投资者是"有利"还是"有害"
+# 与风险评分正交：风险分衡量"波动/不确定性"，情绪分衡量"方向性"
+# ---------------------------------------------------------------------------
+BENEFICIAL_WORDS = [
+    "breakthrough", "launch", "launches", "released", "release", "funding", "raises",
+    "raised", "investment", "invests", "record", "surge", "soar", "jump", "growth",
+    "grow", "profit", "profitable", "revenue beat", "beats", "upgrade", "open source",
+    "partnership", "partners", "adoption", "adopts", "milestone", "win ", "wins",
+    "approve", "approved", "boost", "efficiency", "cheaper", "price cut", "advance",
+    "innovation", "milestone achievement", "leading model", "state of the art",
+    "突破", "融资", "上涨", "增长", "盈利", "开源", "采用", "里程碑",
+    "获批", "创新", "利好", "创纪录", "搭载",
+]
+HARMFUL_WORDS = [
+    "bubble", "crash", "plunge", "selloff", "sell-off", "correction", "bear market",
+    "lawsuit", "antitrust", "investigation", "probe", "ban ", "banned", "restrict",
+    "layoff", "job cut", "cut jobs", "bankrupt", "fraud", "scandal", "breach", "leak",
+    "hack", "vulnerab", "incident", "attack", "deepfake", "misinformation",
+    "hallucinat", "bias", "jailbreak", "fail", "failure", "disappoint", "overhyp",
+    "backlash", "cancel", "warn of", "warning about", "decline", "drop",
+    "loss", "miss estimates", "delay", "fine ", "penalty", "shutdown",
+    "泡沫", "暴跌", "崩盘", "回调", "裁员", "诉讼", "禁令", "调查", "泄露", "攻击",
+    "欺诈", "失败", "下滑", "亏损", "取消", "警告", "利空",
+]
+
+
+def classify_sentiment(title, summary=""):
+    """返回 (sentiment, label)：beneficial 有利 / harmful 有害 / neutral 中性"""
+    text = (title + " " + summary).lower()
+    good = sum(1 for w in BENEFICIAL_WORDS if w in text)
+    bad = sum(1 for w in HARMFUL_WORDS if w in text)
+    if good > bad:
+        return "beneficial", "有利"
+    if bad > good:
+        return "harmful", "有害"
+    return "neutral", "中性"
+
+
 _cache = {"ts": 0, "articles": [], "sources": []}
 _cache_lock = threading.Lock()
 _http_headers = {
@@ -88,6 +127,14 @@ _http_headers = {
 
 def strip_html(s):
     return html.unescape(re.sub(r"<[^>]+>", "", s or "")).strip()
+
+
+def _ts_of(iso):
+    """ISO 时间字符串转 unix 时间戳（用于排序），失败返回 0"""
+    try:
+        return datetime.fromisoformat(iso).timestamp()
+    except Exception:
+        return 0
 
 
 def parse_date(s):
@@ -171,6 +218,9 @@ def fetch_feed(feed):
                 summary = title
             pub = get("pubDate", "published") or get("updated", "updated")
             level, score, tags, dims = score_article(title, summary)
+            sentiment, sentiment_label = classify_sentiment(title, summary)
+            # 重要新闻：风险等级 high/critical 或命中严重信号
+            important = level in ("high", "critical")
             articles.append({
                 "title": title,
                 "url": link,
@@ -182,6 +232,9 @@ def fetch_feed(feed):
                 "score": score,
                 "tags": tags,
                 "dims": dims,
+                "sentiment": sentiment,
+                "sentiment_label": sentiment_label,
+                "important": important,
             })
         return articles, {"name": feed["name"], "status": "ok", "count": len(articles)}
     except Exception as e:
@@ -278,26 +331,34 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         path = self.path.split("?")[0]
-        if path == "/api/news":
+        # 新闻列表：/api/news 及 Claude 遗留的 /api/events/latest 别名
+        if path in ("/api/news", "/api/events/latest"):
             refresh_news()
-            arts = _cache["articles"]
-            # 支持 ?level=high 过滤
+            arts = list(_cache["articles"])
+            # 重要新闻优先，其次按时间倒序
+            arts.sort(key=lambda a: (not a.get("important", False), -_ts_of(a.get("published"))))
             q = self.path.split("?", 1)
+            query = q[1] if len(q) > 1 else ""
             level = None
-            if len(q) > 1:
-                m = re.search(r"level=([a-z]+)", q[1])
-                if m:
-                    level = m.group(1)
+            per_page = None
+            m = re.search(r"level=([a-z]+)", query)
+            if m:
+                level = m.group(1)
+            m = re.search(r"per_page=(\d+)", query)
+            if m:
+                per_page = max(1, min(int(m.group(1)), 200))
             if level:
                 arts = [a for a in arts if a["risk_level"] == level]
+            if per_page:
+                arts = arts[:per_page]
             self._send({"success": True, "data": arts, "count": len(arts)})
-        elif path == "/api/risk-index":
+        elif path in ("/api/risk-index", "/api/events/risk-index"):
             refresh_news()
             self._send({"success": True, "data": compute_index()})
-        elif path == "/api/sources":
+        elif path in ("/api/sources", "/api/events/sources"):
             refresh_news()
             self._send({"success": True, "data": _cache["sources"]})
-        elif path == "/api/refresh":
+        elif path in ("/api/refresh", "/api/events/refresh"):
             refresh_news(force=True)
             self._send({"success": True, "count": len(_cache["articles"])})
         elif path in ("/", "/index.html"):
@@ -306,6 +367,14 @@ class Handler(BaseHTTPRequestHandler):
             name = path.lstrip("/")
             ctype = "application/javascript; charset=utf-8" if name.endswith(".js") else "text/css; charset=utf-8"
             self._serve_file(os.path.join(TPL_DIR, name), ctype)
+        else:
+            self._send({"error": "not found"}, status=404)
+
+    def do_POST(self):
+        path = self.path.split("?")[0]
+        if path in ("/api/events/refresh", "/api/refresh"):
+            refresh_news(force=True)
+            self._send({"success": True, "count": len(_cache["articles"])})
         else:
             self._send({"error": "not found"}, status=404)
 
